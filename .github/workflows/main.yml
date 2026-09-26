@@ -1,0 +1,67 @@
+name: Build TN Tycoon Android APK
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find project ZIP
+        run: |
+          ZIP=$(find . -maxdepth 2 -type f -name "*.zip" | head -n 1)
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+
+      - name: Extract project
+        run: |
+          mkdir -p project
+          unzip -q "$ZIP" -d project
+          echo "Project extracted"
+
+      - name: Find Android project
+        run: |
+          ANDROID_DIR=$(find project -type f -name "gradlew" -printf '%h\n' | head -n 1)
+          echo "ANDROID_DIR=$ANDROID_DIR" >> "$GITHUB_ENV"
+          echo "Android directory: $ANDROID_DIR"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android tools
+        run: |
+          sdkmanager "platforms;android-36" \
+                     "build-tools;36.0.0" \
+                     "ndk;28.2.13676358" \
+                     "cmake;3.22.1"
+
+      - name: Make Gradle executable
+        run: chmod +x "$ANDROID_DIR/gradlew"
+
+      - name: Build APK
+        working-directory: ${{ env.ANDROID_DIR }}
+        run: ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Find APK
+        run: |
+          APK=$(find "$ANDROID_DIR" -type f -name "app-debug.apk" | head -n 1)
+          test -n "$APK"
+          cp "$APK" TN_Tycoon_app-debug.apk
+          echo "APK found: $APK"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TN_Tycoon_Android_APK
+          path: TN_Tycoon_app-debug.apk
+          if-no-files-found: error
