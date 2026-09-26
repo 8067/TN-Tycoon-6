@@ -15,6 +15,13 @@ jobs:
       - name: Find project ZIP
         run: |
           ZIP=$(find . -maxdepth 2 -type f -name "*.zip" | head -n 1)
+
+          if [ -z "$ZIP" ]; then
+            echo "ERROR: No project ZIP found"
+            exit 1
+          fi
+
+          echo "Found ZIP: $ZIP"
           echo "ZIP=$ZIP" >> "$GITHUB_ENV"
 
       - name: Extract project
@@ -26,8 +33,15 @@ jobs:
       - name: Find Android project
         run: |
           ANDROID_DIR=$(find project -type f -name "gradlew" -printf '%h\n' | head -n 1)
-          echo "ANDROID_DIR=$ANDROID_DIR" >> "$GITHUB_ENV"
+
+          if [ -z "$ANDROID_DIR" ]; then
+            echo "ERROR: Android project with gradlew was not found"
+            find project -maxdepth 4 -type f | head -n 100
+            exit 1
+          fi
+
           echo "Android directory: $ANDROID_DIR"
+          echo "ANDROID_DIR=$ANDROID_DIR" >> "$GITHUB_ENV"
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -38,7 +52,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
-             pacakage: 'platform-tools'
+          packages: 'platform-tools'
 
       - name: Install Android tools
         run: |
@@ -50,6 +64,10 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x "$ANDROID_DIR/gradlew"
 
+      - name: Fetch Android dependencies
+        working-directory: ${{ env.ANDROID_DIR }}
+        run: bash scripts/fetch_android_deps.sh
+
       - name: Build APK
         working-directory: ${{ env.ANDROID_DIR }}
         run: ./gradlew :app:assembleDebug --no-daemon
@@ -57,9 +75,14 @@ jobs:
       - name: Find APK
         run: |
           APK=$(find "$ANDROID_DIR" -type f -name "app-debug.apk" | head -n 1)
-          test -n "$APK"
-          cp "$APK" TN_Tycoon_app-debug.apk
+
+          if [ -z "$APK" ]; then
+            echo "ERROR: APK was not created"
+            exit 1
+          fi
+
           echo "APK found: $APK"
+          cp "$APK" TN_Tycoon_app-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
