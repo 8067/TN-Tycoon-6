@@ -36,7 +36,6 @@ jobs:
 
           if [ -z "$ANDROID_DIR" ]; then
             echo "ERROR: Android project with gradlew was not found"
-            find project -maxdepth 4 -type f | head -n 100
             exit 1
           fi
 
